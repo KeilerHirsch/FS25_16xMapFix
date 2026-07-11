@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# BigMap Optimizer working/output artifacts
+*_fixed.zip
+*.fixer.png
