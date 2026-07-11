@@ -54,7 +54,11 @@ the input is never modified.
 
 from __future__ import annotations
 
-import subprocess
+import shutil
+
+# subprocess only ever runs our own bundled grleconvert (list-argv, no shell);
+# see _run_grleconvert for the full rationale. bandit B404 acknowledged.
+import subprocess  # nosec B404
 import sys
 import tempfile
 import zipfile
@@ -74,6 +78,11 @@ SAFE_SIZE = 8192
 #: allocate an unbounded image (decompression-bomb defence -- see M2).
 MAX_EDGE = 70_000
 
+#: Beyond this the sum (dim_log2 + chunk_log2) in a GDM header describes an
+#: edge that dwarfs even a 64x map -- treat such a header as corrupt/hostile
+#: rather than computing an astronomically large shift from it.
+MAX_TOTAL_LOG2 = 24
+
 #: Density/info layers live here inside a map archive.
 DATA_SUBDIR = "maps/data"
 
@@ -83,7 +92,16 @@ PNG_EXT = ".png"
 
 #: Guardrails against hostile archives (zip bombs / path traversal).
 MAX_ARCHIVE_MEMBERS = 100_000
-MAX_TOTAL_UNCOMPRESSED = 8 * 1024 ** 3  # 8 GiB is well above any real FS25 map.
+#: Upper bound on the summed *uncompressed* size we will extract. A 32x map is
+#: genuinely multi-gigabyte (that is the whole reason this tool exists), so the
+#: bound stays generous; the real disk-fill defence is the free-space preflight
+#: in _safe_extract, which also accounts for the repacked copy.
+MAX_TOTAL_UNCOMPRESSED = 8 * 1024**3  # 8 GiB covers a 32x map with headroom.
+
+#: grleconvert is a third-party native binary; a corrupt payload could make it
+#: hang. Bound every call so a hostile archive cannot wedge the tool forever
+#: (mirrors the timeout vram.py already uses on its own subprocess call).
+GRLECONVERT_TIMEOUT_S = 300
 
 # Bound Pillow's own decompression-bomb guard to our ceiling rather than
 # disabling it. MAX_EDGE**2 still admits legitimate 64x maps.
@@ -101,6 +119,11 @@ class FixerError(Exception):
     """Raised for any recoverable, user-facing failure."""
 
 
+def _warn(msg: str) -> None:
+    """Emit a non-fatal warning to stderr without aborting the run."""
+    print(f"  WARNING: {msg}", file=sys.stderr)
+
+
 @dataclass(frozen=True)
 class GdmHeader:
     """The subset of the GDM header we need to inspect and re-encode faithfully.
@@ -116,6 +139,12 @@ class GdmHeader:
       bytes.
 
     Edge length is ``2 ** (dim_log2 + chunk_log2)``.
+
+    ``edge`` is derived solely from the header bytes and is used to skip the
+    (costly) decode of a GDM that is already small enough. Every layer we do
+    decode is cross-checked against its real pixel dimensions in
+    ``_downscale_png_file`` (via ``expected_edge``), which surfaces any header
+    mis-parse on the layers that actually matter.
     """
 
     edge: int
@@ -142,7 +171,10 @@ class GdmHeader:
             # the compression boundaries.
             boundaries_off = 0x10 + 3 * type_index_channels
 
-        edge = 1 << (dim_log2 + chunk_log2)
+        total_log2 = dim_log2 + chunk_log2
+        if total_log2 > MAX_TOTAL_LOG2:
+            raise FixerError(f"{path.name}: implausible GDM dimensions in header")
+        edge = 1 << total_log2
         if num_ranges > 1:
             if boundaries_off >= len(head):
                 raise FixerError(f"{path.name}: GDM header larger than expected")
@@ -156,13 +188,27 @@ class GdmHeader:
 
 
 def _run_grleconvert(grleconvert: Path, args: list[str]) -> str:
-    """Run grleconvert and return its stdout, raising on failure."""
-    result = subprocess.run(
-        [str(grleconvert), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Run grleconvert and return its stdout, raising on failure.
+
+    The executable is our own bundled binary (resolved next to this script,
+    never via PATH or the extracted archive) and every argument is either an
+    absolute path we built or a small integer, so there is no shell and no
+    argument-injection surface -- bandit B603 is a non-issue here.
+    """
+    try:
+        # trusted bundled exe, list-argv, no shell (see docstring) -> B603 non-issue
+        result = subprocess.run(  # nosec B603
+            [str(grleconvert), *args],
+            capture_output=True,
+            text=True,
+            errors="replace",  # never let a non-UTF8 diagnostic mask the real error
+            check=False,
+            timeout=GRLECONVERT_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise FixerError(
+            f"grleconvert timed out after {GRLECONVERT_TIMEOUT_S}s ({' '.join(args)})"
+        ) from exc
     if result.returncode != 0:
         raise FixerError(
             f"grleconvert failed ({' '.join(args)}):\n{result.stdout}\n{result.stderr}"
@@ -170,39 +216,59 @@ def _run_grleconvert(grleconvert: Path, args: list[str]) -> str:
     return result.stdout
 
 
-def _downscale_png_file(png: Path) -> bool:
-    """Downscale a square PNG in place with nearest-neighbour.
+def _downscale_png_file(png: Path, expected_edge: int | None = None) -> bool:
+    """Downscale a square, oversized PNG in place with nearest-neighbour.
 
-    Returns True if the image was oversized and therefore changed.
+    Returns True if the image was oversized and therefore changed, False if it
+    was left untouched (small, or a heightmap). Density pixels are packed bit
+    fields (fruit type, growth stage, ...), not colours -- averaging them would
+    corrupt the data, so NEAREST is mandatory.
 
-    Density pixels are packed bit fields (fruit type, growth stage, ...), not
-    colours -- averaging them would corrupt the data, so NEAREST is mandatory.
+    ``formats=["PNG"]`` pins Pillow to the PNG decoder: the bytes come straight
+    from an untrusted archive, and without this a member merely *named* ``.png``
+    could be routed through any of Pillow's other plugins (see security H1).
     """
-    with Image.open(png) as img:
+    with Image.open(png, formats=["PNG"]) as img:
         width, height = img.size
-        if width > MAX_EDGE or height > MAX_EDGE:
-            raise FixerError(f"{png.name}: {width}x{height} exceeds the {MAX_EDGE}px ceiling")
-        if width != height:
-            raise FixerError(f"{png.name}: non-square density map {width}x{height} is unsupported")
+        # Not oversized: leave every small file alone -- including small,
+        # non-square overlays/icons that legitimately live under maps/data and
+        # must not abort the whole archive (finding H1/python).
         if width <= SAFE_SIZE:
             return False
+        # A non-power-of-two edge (8193, 4097, 2049, ...) marks a HEIGHTMAP /
+        # DEM: a 2^n+1 vertex grid loaded outside the tile registry, which is
+        # NOT the overflow source. Resampling it to 2^n would corrupt the
+        # terrain geometry, so heightmaps are left exactly as they are.
         if width & (width - 1) != 0:
-            # A power-of-two edge (8192, 16384, 32768) marks a tiled density/
-            # info layer -- exactly what overflows the engine's tile registry.
-            # A non-power-of-two edge (8193, 4097, 2049, ...) marks a HEIGHTMAP
-            # / DEM: a 2^n+1 vertex grid loaded outside the tile registry, which
-            # is NOT the overflow source. Resampling it to 2^n would corrupt the
-            # terrain geometry, so heightmaps are left exactly as they are.
             return False
+        # Genuinely oversized, power-of-two tiled density/info layer from here.
+        if width > MAX_EDGE:
+            raise FixerError(
+                f"{png.name}: {width}x{height} exceeds the {MAX_EDGE}px ceiling"
+            )
+        if width != height:
+            raise FixerError(
+                f"{png.name}: oversized non-square density map {width}x{height} "
+                "is unsupported"
+            )
+        if expected_edge is not None and width != expected_edge:
+            _warn(
+                f"{png.name}: GDM header claimed {expected_edge}px but the decoded "
+                f"layer is {width}px; trusting the decoded size."
+            )
         mode = img.mode
-        resized = img.resize((SAFE_SIZE, SAFE_SIZE), Image.NEAREST)
+        resized = img.resize((SAFE_SIZE, SAFE_SIZE), Image.Resampling.NEAREST)
     if resized.mode != mode:  # the packed layout must survive the resize
-        raise FixerError(f"{png.name}: mode changed on resize ({mode} -> {resized.mode})")
+        raise FixerError(
+            f"{png.name}: mode changed on resize ({mode} -> {resized.mode})"
+        )
     resized.save(png)
     return True
 
 
-def _resize_compiled_layer(path: Path, grleconvert: Path, header: GdmHeader | None) -> bool:
+def _resize_compiled_layer(
+    path: Path, grleconvert: Path, header: GdmHeader | None
+) -> bool:
     """Downscale a compiled .gdm/.grle layer in place via a PNG round-trip.
 
     ``header`` is the parsed GDM header for .gdm files (used to re-encode with
@@ -216,9 +282,10 @@ def _resize_compiled_layer(path: Path, grleconvert: Path, header: GdmHeader | No
         return False  # small GDM: skip without decoding at all
 
     png = path.with_name(path.name + ".fixer.png")
-    _run_grleconvert(grleconvert, [str(path), str(png)])
     try:
-        if not _downscale_png_file(png):
+        _run_grleconvert(grleconvert, [str(path), str(png)])
+        expected_edge = header.edge if header is not None else None
+        if not _downscale_png_file(png, expected_edge=expected_edge):
             return False  # GRLE (or GDM) that turned out to be small enough
         if header is not None:  # GDM: re-encode with faithful parameters
             args = [str(png), str(path), "--channels", str(header.num_channels)]
@@ -241,14 +308,15 @@ def fix_density_layers(data_dir: Path, grleconvert: Path) -> list[str]:
     for path in sorted(data_dir.iterdir()):
         if not path.is_file():
             continue
+        suffix = path.suffix.lower()  # archives may carry .PNG / .GDM (finding H2)
         try:
-            if path.suffix == PNG_EXT:
+            if suffix == PNG_EXT:
                 if _downscale_png_file(path):
                     changed.append(path.name)
-            elif path.suffix == GDM_EXT:
+            elif suffix == GDM_EXT:
                 if _resize_compiled_layer(path, grleconvert, GdmHeader.read(path)):
                     changed.append(path.name)
-            elif path.suffix == GRLE_EXT:
+            elif suffix == GRLE_EXT:
                 if _resize_compiled_layer(path, grleconvert, None):
                     changed.append(path.name)
         except FixerError:
@@ -262,8 +330,14 @@ def fix_density_layers(data_dir: Path, grleconvert: Path) -> list[str]:
 
 
 def _safe_extract(archive: Path, dest: Path) -> None:
-    """Extract ``archive`` into ``dest``, refusing traversal and zip bombs."""
-    with zipfile.ZipFile(archive) as zf:
+    """Extract ``archive`` into ``dest``, refusing traversal, bombs and corruption."""
+    try:
+        zf = zipfile.ZipFile(archive)
+    except (zipfile.BadZipFile, OSError) as exc:
+        raise FixerError(
+            f"{archive.name}: not a readable .zip archive ({exc})"
+        ) from exc
+    with zf:
         members = zf.infolist()
         if len(members) > MAX_ARCHIVE_MEMBERS:
             raise FixerError("archive has too many members; refusing to extract")
@@ -276,7 +350,18 @@ def _safe_extract(archive: Path, dest: Path) -> None:
             target = (dest / member.filename).resolve()
             if dest_root != target and dest_root not in target.parents:
                 raise FixerError(f"unsafe path in archive: {member.filename}")
-        zf.extractall(dest)
+        # Refuse to start if the disk cannot hold the extracted tree plus the
+        # repacked copy that follows (~twice the uncompressed size).
+        free = shutil.disk_usage(dest).free
+        if free < total * 2:
+            raise FixerError(
+                f"not enough free disk space: need ~{total * 2 // 1024**2} MiB, "
+                f"have {free // 1024**2} MiB free"
+            )
+        try:
+            zf.extractall(dest)
+        except (zipfile.BadZipFile, OSError) as exc:
+            raise FixerError(f"{archive.name}: archive is corrupt ({exc})") from exc
 
 
 def _repack(src_dir: Path, out_zip: Path) -> None:
@@ -308,7 +393,12 @@ def fix_map(map_zip: Path, out_zip: Path | None = None) -> Path:
     if not map_zip.is_file() or map_zip.suffix.lower() != ".zip":
         raise FixerError(f"not a .zip map archive: {map_zip}")
     grleconvert = _find_grleconvert()
-    out_zip = out_zip or map_zip.with_name(f"{map_zip.stem}_fixed.zip")
+    if out_zip is None:
+        out_zip = map_zip.with_name(f"{map_zip.stem}_fixed.zip")
+    if out_zip.resolve() == map_zip.resolve():
+        raise FixerError(
+            "output path must differ from the input; refusing to overwrite the original map"
+        )
 
     with tempfile.TemporaryDirectory(prefix="fs25fixer_") as tmp:
         work = Path(tmp)
@@ -335,6 +425,7 @@ def fix_map(map_zip: Path, out_zip: Path | None = None) -> Path:
 
 
 def main(argv: list[str]) -> int:
+    """CLI entry point: fix the map given as the first argument."""
     print(BANNER)
     if not argv:
         print("Usage: python bigmap_optimizer.py <map.zip> [output.zip]")
@@ -343,6 +434,11 @@ def main(argv: list[str]) -> int:
         out = fix_map(Path(argv[0]), Path(argv[1]) if len(argv) > 1 else None)
     except FixerError as exc:
         print(f"\n  ERROR: {exc}")
+        return 1
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - last resort: a clean message, never a raw traceback
+        print(f"\n  UNEXPECTED ERROR: {exc}")
         return 1
     print(f"\n  Done. Fixed map written to:\n    {out}\n")
     print("  Apply it to YOUR legally-owned copy of the map. Happy farming.")

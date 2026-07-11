@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 
+# Test / coverage artifacts
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
 # BigMap Optimizer working/output artifacts
 *_fixed.zip
 *.fixer.png
