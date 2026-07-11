@@ -10,6 +10,12 @@
 
 > Diagnosed on a dedicated server + a 16 GB-RAM client running the same 16x map. The tool took a real 16x map from **878,987 `allocReg` errors → 0** and made it playable in multiplayer.
 
+<div align="center">
+
+<img src="assets/showcase.svg" width="820" alt="Before/after: a 16x FS25 map going from 878,987 allocReg errors to 0 in multiplayer"/>
+
+</div>
+
 ## TL;DR
 
 The `allocReg` crash is really **two different problems** that look identical:
