@@ -4,6 +4,20 @@ All notable changes to the **BigMap Optimizer** tool are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-07-12
+
+### Fixed
+- **Atomic repack:** the fixed `.zip` is now written to a temp file and moved into
+  place only once complete, so an interrupted or disk-full run can no longer leave
+  a truncated/corrupt output behind (this tool targets multi-GB maps).
+- **Disk-space preflight** now measures the drive the fixed map is actually written
+  to (extraction happens next to the output), not the system temp drive.
+- **Silent skip made falsifiable:** an oversized layer that is neither a power of
+  two nor a 2^n+1 heightmap is now warned about instead of quietly left unchanged.
+
+Found by an independent code-review pass. No change to behaviour on a valid map —
+all 49 tests still pass.
+
 ## [1.1.1] - 2026-07-12
 
 ### Changed

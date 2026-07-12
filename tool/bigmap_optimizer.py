@@ -240,6 +240,16 @@ def _downscale_png_file(png: Path, expected_edge: int | None = None) -> bool:
         # NOT the overflow source. Resampling it to 2^n would corrupt the
         # terrain geometry, so heightmaps are left exactly as they are.
         if width & (width - 1) != 0:
+            # A 2^n+1 edge (8193, 4097, ...) is a genuine heightmap/DEM and is
+            # correctly left alone. Any OTHER non-power-of-two oversized layer is
+            # unexpected -- warn so the "it's a heightmap" assumption is
+            # falsifiable by the user instead of silently trusted.
+            if (width - 1) & (width - 2) != 0:
+                _warn(
+                    f"{png.name}: oversized {width}px layer is neither a power of "
+                    "two nor a 2^n+1 heightmap; leaving it unchanged. If the map "
+                    "still overflows in multiplayer, this layer may be the cause."
+                )
             return False
         # Genuinely oversized, power-of-two tiled density/info layer from here.
         if width > MAX_EDGE:
@@ -365,11 +375,22 @@ def _safe_extract(archive: Path, dest: Path) -> None:
 
 
 def _repack(src_dir: Path, out_zip: Path) -> None:
-    """Repack a directory tree into a zip, deterministically ordered."""
+    """Repack a directory tree into a zip, deterministically ordered.
+
+    Written to a sibling ``.tmp`` file and atomically moved into place only once
+    the whole archive is complete, so an interruption or a disk-full error
+    mid-write can never leave a truncated/corrupt ``_fixed.zip`` behind.
+    """
     files = sorted(p for p in src_dir.rglob("*") if p.is_file())
-    with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path in files:
-            zf.write(path, path.relative_to(src_dir).as_posix())
+    tmp = out_zip.with_name(out_zip.name + ".tmp")
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+            for path in files:
+                zf.write(path, path.relative_to(src_dir).as_posix())
+        tmp.replace(out_zip)  # atomic on the same filesystem
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _find_grleconvert() -> Path:
@@ -400,7 +421,11 @@ def fix_map(map_zip: Path, out_zip: Path | None = None) -> Path:
             "output path must differ from the input; refusing to overwrite the original map"
         )
 
-    with tempfile.TemporaryDirectory(prefix="fs25fixer_") as tmp:
+    # Extract next to the output so the free-space preflight in _safe_extract
+    # measures the drive the fixed map is actually written to (not the system
+    # temp drive), and so extraction + the repacked copy share one filesystem
+    # (making the final move atomic).
+    with tempfile.TemporaryDirectory(prefix="fs25fixer_", dir=out_zip.parent) as tmp:
         work = Path(tmp)
         _safe_extract(map_zip, work)
 
