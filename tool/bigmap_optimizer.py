@@ -3,7 +3,7 @@
 #
 # ============================================================================
 #  BigMap Optimizer  --  oversized-map density downscaler
-#  "The MAN, The MYTH, The LEGEND; KeilerHirsch"
+#  "The Man, The Mythos, The Legend : KeilerHirsch"
 # ============================================================================
 #
 #  Makes oversized Farming Simulator 25 maps (16x / 32x, density maps larger
@@ -110,7 +110,7 @@ Image.MAX_IMAGE_PIXELS = MAX_EDGE * MAX_EDGE
 BANNER = r"""
   ============================================================
    BigMap Optimizer  --  oversized-map density downscaler
-   "The MAN, The MYTH, The LEGEND; KeilerHirsch"
+   "The Man, The Mythos, The Legend : KeilerHirsch"
   ============================================================
 """
 

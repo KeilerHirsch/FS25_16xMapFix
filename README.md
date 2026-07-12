@@ -8,6 +8,9 @@
 
 </div>
 
+> [!IMPORTANT]
+> Enjoying the tool? You can support development on **[Ko-fi](https://ko-fi.com/keilerhirsch)** ☕ — please mention *16x Map Fix* so I know what to keep building.
+
 > Diagnosed on a dedicated server + a 16 GB-RAM client running the same 16x map. The tool took a real 16x map from **878,987 `allocReg` errors → 0** and made it playable in multiplayer.
 
 <div align="center">

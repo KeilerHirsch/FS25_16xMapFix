@@ -4,6 +4,21 @@ All notable changes to the **BigMap Optimizer** tool are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-07-12
+
+### Changed
+- Normalised the author signature to the canonical KeilerHirsch form across the
+  tool scripts, batch files and the companion mod (rebuilt the companion zip).
+
+### Added
+- Ko-fi support callout in the README (FUNDING already present).
+
+### Note
+- Licensing is unchanged and intentional: documentation under CC BY 4.0, tool
+  code under GPLv3, bundled `grleconvert` under its own MIT license. This repo
+  stays open by design (community fix + reference), so the proprietary mod
+  standard deliberately does not apply here.
+
 ## [1.1.0] - 2026-07-11
 
 Security- and correctness-hardening pass. No change to the tool's behaviour on

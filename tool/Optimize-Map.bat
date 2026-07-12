@@ -1,7 +1,7 @@
 @echo off
 rem ============================================================================
 rem  BigMap Optimizer -- oversized-map drag & drop launcher
-rem  "The MAN, The MYTH, The LEGEND; KeilerHirsch"   (GPLv3)
+rem  "The Man, The Mythos, The Legend : KeilerHirsch"   (GPLv3)
 rem
 rem  Just drag one or more FS25 map .zip files onto this Fix-Map.bat icon.
 rem  A fixed copy (<name>_fixed.zip) is written next to each original; your
