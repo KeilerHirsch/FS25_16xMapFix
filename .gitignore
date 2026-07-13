@@ -12,3 +12,13 @@ htmlcov/
 *_fixed.zip
 *.fixer.png
 companion-mod/FS25_BigMapOptimizerCompanion.zip
+
+# --- Secrets / PII (NEVER commit) ---
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+*.pfx
+Local State
+Cookies
