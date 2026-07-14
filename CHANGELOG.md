@@ -4,7 +4,13 @@ All notable changes to the **BigMap Optimizer** tool are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.1.3] - 2026-07-12
+## [1.1.3] - 2026-07-14
+
+### Security
+- ECC audit pass (ruff clean, bandit 7 → 0): annotated the benign findings as
+  `nosec` with rationale — `quoteattr` escapes our own generated XML output (never
+  parses untrusted input); `nvidia-smi` runs with a fixed list-form argv, no shell.
+  No behaviour change; the 49-test suite stays green.
 
 ### Changed
 - Repo now carries **GPLv3** at the root LICENSE. The tool code was already GPLv3
