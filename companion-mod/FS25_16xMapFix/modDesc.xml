@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!--
-  BigMap Optimizer Companion - Texture Streaming Budget
+  16x Map Fix Companion - Texture Streaming Budget
   "The Man, The Mythos, The Legend : KeilerHirsch"   (GNU GPL v3 or later)
 
-  Mod name = "FS25_BigMapOptimizerCompanion" (final). It must stay identical on
+  Mod name = "FS25_16xMapFix" (final). It must stay identical on
   server and client for multiplayer, and must match COMPANION_MOD_NAME in the
   tool's configure_companion.py so the VRAM auto-config writes the settings file
   this mod reads.
@@ -15,27 +15,27 @@
     <multiplayer supported="true"/>
 
     <title>
-        <en><![CDATA[BigMap Optimizer Companion - Texture Budget]]></en>
-        <de><![CDATA[BigMap Optimizer Companion - Texturspeicher]]></de>
+        <en><![CDATA[16x Map Fix Companion - Texture Budget]]></en>
+        <de><![CDATA[16x Map Fix Companion - Texturspeicher]]></de>
     </title>
 
     <description>
-        <en><![CDATA[Companion to the BigMap Optimizer map tool.
+        <en><![CDATA[Companion to the 16x Map Fix map tool.
 
 Farming Simulator 25 caps high-resolution texture streaming at roughly 4 GB of graphics-card memory by default. On large (16x / 32x) maps that starves the terrain and causes texture flicker and pop-in. This mod raises the cap to a value you set ONCE in a plain settings file - no code editing - and it survives mod updates.
 
-The value lives in:  modSettings/FS25_BigMapOptimizerCompanion.xml  (created automatically on first run). Rule of thumb: set vramGiB to your graphics-card memory in GB minus 2.
+The value lives in:  modSettings/FS25_16xMapFix.xml  (created automatically on first run). Rule of thumb: set vramGiB to your graphics-card memory in GB minus 2.
 
 Client-side rendering setting only: it changes no gameplay, no savegame and no multiplayer state, so it is fully multiplayer-safe.
 
 Only use it if your graphics card has MORE than 4 GB of VRAM.
 
 "The Man, The Mythos, The Legend : KeilerHirsch"]]></en>
-        <de><![CDATA[Begleit-Mod zum BigMap-Optimizer-Kartentool.
+        <de><![CDATA[Begleit-Mod zum 16x-Map-Fix-Kartentool.
 
 Farming Simulator 25 begrenzt das Streaming hochaufloesender Texturen standardmaessig auf rund 4 GB Grafikkartenspeicher. Auf grossen (16x / 32x) Karten reicht das nicht und es kommt zu Textur-Flackern und Nachladen. Diese Mod hebt das Limit auf einen Wert an, den du EINMAL in einer einfachen Einstellungsdatei setzt - ohne Code zu bearbeiten - und der Mod-Updates uebersteht.
 
-Der Wert steht in:  modSettings/FS25_BigMapOptimizerCompanion.xml  (wird beim ersten Start automatisch angelegt). Faustregel: vramGiB = Grafikkartenspeicher in GB minus 2.
+Der Wert steht in:  modSettings/FS25_16xMapFix.xml  (wird beim ersten Start automatisch angelegt). Faustregel: vramGiB = Grafikkartenspeicher in GB minus 2.
 
 Reine clientseitige Render-Einstellung: aendert kein Gameplay, keinen Spielstand und keinen Multiplayer-Zustand - damit voll multiplayer-sicher.
 

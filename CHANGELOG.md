@@ -1,8 +1,21 @@
 # Changelog
 
-All notable changes to the **BigMap Optimizer** tool are documented here.
+All notable changes to the **16x Map Fix** tool are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
+
+## [1.1.4] - 2026-07-14
+
+### Changed
+- **Rebrand to "16x Map Fix"** — one consistent name across the whole project. The
+  product was previously labelled "BigMap Optimizer" while the repo and releases said
+  "16x Map Fix", so the download names never matched the repo (they looked like foreign
+  files). Now unified: repo `FS25_16xMapFix`, tool module `mapfix.py`, companion mod
+  `FS25_16xMapFix`, logo wordmark "16× MAP FIX". **No functional change** — the tool and
+  companion behave identically; the 49-test suite stays green.
+- The companion settings file is now `modSettings/FS25_16xMapFix.xml` (was
+  `FS25_BigMapOptimizerCompanion.xml`). Delete the old file after updating; the mod
+  recreates the new one on first run.
 
 ## [1.1.3] - 2026-07-14
 

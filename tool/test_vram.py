@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#  Tests for vram + configure_companion -- part of BigMap Optimizer.
+#  Tests for vram + configure_companion -- part of 16x Map Fix.
 #  Copyright (C) 2026  KeilerHirsch. Licensed under the GNU GPL v3 or later.
 #
 #  Pure-logic tests: no registry, no GPU and no game install required.

@@ -1,5 +1,5 @@
 -- ============================================================================
---  BigMap Optimizer Companion  --  Texture-Streaming Budget
+--  16x Map Fix Companion  --  Texture-Streaming Budget
 --  "The Man, The Mythos, The Legend : KeilerHirsch"
 --
 --  Farming Simulator 25 caps high-resolution texture streaming at ~4 GB of
@@ -22,7 +22,7 @@
 
 TextureBudgetCompanion = {}
 
-local MOD = "BigMap Optimizer Companion"
+local MOD = "16x Map Fix Companion"
 local BYTES_PER_GIB = 1073741824
 local DEFAULT_GIB = 6    -- safe for an 8 GB card: (VRAM in GB) minus 2 headroom
 local MIN_GIB = 2        -- never drop below the engine's own fallback
@@ -37,7 +37,7 @@ local function log(msg)
 end
 
 local function settingsPath()
-    return getUserProfileAppPath() .. "modSettings/FS25_BigMapOptimizerCompanion.xml"
+    return getUserProfileAppPath() .. "modSettings/FS25_16xMapFix.xml"
 end
 
 --- Return the configured budget in GiB, creating a default settings file on

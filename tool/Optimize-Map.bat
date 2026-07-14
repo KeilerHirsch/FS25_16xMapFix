@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================================
-rem  BigMap Optimizer -- oversized-map drag & drop launcher
+rem  16x Map Fix -- oversized-map drag & drop launcher
 rem  "The Man, The Mythos, The Legend : KeilerHirsch"   (GPLv3)
 rem
 rem  Just drag one or more FS25 map .zip files onto this Fix-Map.bat icon.
@@ -10,14 +10,14 @@ rem ============================================================================
 setlocal
 chcp 65001 >nul
 set "PYTHONUTF8=1"
-title BigMap Optimizer
+title 16x Map Fix
 
 set "HERE=%~dp0"
-set "FIXER=%HERE%bigmap_optimizer.py"
+set "FIXER=%HERE%mapfix.py"
 
 echo(
 echo   ============================================================
-echo    BigMap Optimizer  --  oversized-map density downscaler
+echo    16x Map Fix  --  oversized-map density downscaler
 echo    drag a map .zip onto this file to shrink it to engine-safe size
 echo   ============================================================
 

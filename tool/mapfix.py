@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # ============================================================================
-#  BigMap Optimizer  --  oversized-map density downscaler
+#  16x Map Fix  --  oversized-map density downscaler
 #  "The Man, The Mythos, The Legend : KeilerHirsch"
 # ============================================================================
 #
@@ -42,10 +42,10 @@
 #  OVER-estimates, which is safe; rewriting them risks an UNDER-estimate we
 #  cannot verify per subsystem. Correctness beats a cosmetic edit.
 # ============================================================================
-"""BigMap Optimizer -- FS25 oversized-map density downscaler.
+"""16x Map Fix -- FS25 oversized-map density downscaler.
 
 Usage:
-    python bigmap_optimizer.py <map.zip> [output.zip]
+    python mapfix.py <map.zip> [output.zip]
 
 Drop a map .zip on the accompanying launcher, or pass its path on the command
 line. A fixed copy is written next to the original as ``<name>_fixed.zip`` --
@@ -109,7 +109,7 @@ Image.MAX_IMAGE_PIXELS = MAX_EDGE * MAX_EDGE
 
 BANNER = r"""
   ============================================================
-   BigMap Optimizer  --  oversized-map density downscaler
+   16x Map Fix  --  oversized-map density downscaler
    "The Man, The Mythos, The Legend : KeilerHirsch"
   ============================================================
 """
@@ -453,7 +453,7 @@ def main(argv: list[str]) -> int:
     """CLI entry point: fix the map given as the first argument."""
     print(BANNER)
     if not argv:
-        print("Usage: python bigmap_optimizer.py <map.zip> [output.zip]")
+        print("Usage: python mapfix.py <map.zip> [output.zip]")
         return 2
     try:
         out = fix_map(Path(argv[0]), Path(argv[1]) if len(argv) > 1 else None)

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#  BigMap Optimizer -- VRAM auto-config for the companion mod
+#  16x Map Fix -- VRAM auto-config for the companion mod
 #  "The Man, The Mythos, The Legend : KeilerHirsch"   (GNU GPL v3 or later)
 #
 #  Detects this PC's graphics-card memory and writes the companion mod's
 #  settings file, so the in-game texture-streaming budget is set from real
 #  hardware with no manual editing. Cross-vendor (NVIDIA / AMD / Intel) via the
-#  vram module. This is the "true auto" half of BigMap Optimizer: Lua cannot
+#  vram module. This is the "true auto" half of 16x Map Fix: Lua cannot
 #  read physical VRAM in-game, so the tool writes the value the mod then reads.
-"""Detect VRAM and write the BigMap Optimizer companion settings file."""
+"""Detect VRAM and write the 16x Map Fix companion settings file."""
 
 from __future__ import annotations
 
@@ -20,8 +20,8 @@ from xml.sax.saxutils import quoteattr  # nosec B406 -- quoteattr ESCAPES our ow
 import vram
 
 #: KEEP IN SYNC with the companion mod's settings filename in
-#: companion-mod/FS25_BigMapOptimizerCompanion/scripts/textureBudget.lua.
-COMPANION_MOD_NAME = "FS25_BigMapOptimizerCompanion"
+#: companion-mod/FS25_16xMapFix/scripts/textureBudget.lua.
+COMPANION_MOD_NAME = "FS25_16xMapFix"
 
 #: Where FS25 keeps its user profile (and therefore ``modSettings/``). Documents
 #: can be redirected (OneDrive) or localised, so several candidates are probed.
@@ -33,7 +33,7 @@ _PROFILE_CANDIDATES = (
 )
 
 _HELP_TEXT = (
-    "Auto-written by BigMap Optimizer from your detected graphics-card memory. "
+    "Auto-written by 16x Map Fix from your detected graphics-card memory. "
     "vramGiB = how much VRAM FS25 may use for textures; delete this file to let "
     "the tool (or the mod's default) set it again."
 )
@@ -72,7 +72,7 @@ def write_settings(budget_gib: float, profile_dir: Path) -> Path:
 
 
 def main() -> int:
-    print("\n  BigMap Optimizer -- VRAM auto-config\n")
+    print("\n  16x Map Fix -- VRAM auto-config\n")
 
     raw = vram.detect_vram_bytes()
     if not raw:

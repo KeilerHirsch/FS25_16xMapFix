@@ -40,7 +40,7 @@ In **multiplayer** the server streams its density maps to each joining client, w
 
 ## The tool
 
-[`tool/bigmap_optimizer.py`](tool/bigmap_optimizer.py) + [`tool/Optimize-Map.bat`](tool/Optimize-Map.bat) (Windows drag & drop). It downscales every oversized (16384px, power-of-two) density/info layer in a map to the engine-safe **8192px** — the exact density working 4x maps ship at — with **field and crop data preserved** (decode → nearest-neighbour resample → re-encode; verified 99.9% pixel-identical, fruit coverage unchanged). Heightmaps and terrain geometry (`dem.png`, 2ⁿ+1 grids) are detected by their non-power-of-two size and **never touched**.
+[`tool/mapfix.py`](tool/mapfix.py) + [`tool/Optimize-Map.bat`](tool/Optimize-Map.bat) (Windows drag & drop). It downscales every oversized (16384px, power-of-two) density/info layer in a map to the engine-safe **8192px** — the exact density working 4x maps ship at — with **field and crop data preserved** (decode → nearest-neighbour resample → re-encode; verified 99.9% pixel-identical, fruit coverage unchanged). Heightmaps and terrain geometry (`dem.png`, 2ⁿ+1 grids) are detected by their non-power-of-two size and **never touched**.
 
 ### Use it
 

@@ -8,10 +8,10 @@ __pycache__/
 .pytest_cache/
 htmlcov/
 
-# BigMap Optimizer working/output artifacts
+# 16x Map Fix working/output artifacts
 *_fixed.zip
 *.fixer.png
-companion-mod/FS25_BigMapOptimizerCompanion.zip
+companion-mod/FS25_16xMapFix.zip
 
 # --- Secrets / PII (NEVER commit) ---
 .env

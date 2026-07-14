@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Tests for bigmap_optimizer -- part of BigMap Optimizer.
+# Tests for mapfix -- part of 16x Map Fix.
 # Copyright (C) 2026  KeilerHirsch. Licensed under the GNU GPL v3 or later.
 #
 # Pure-logic tests run without grleconvert; the compiled-layer round-trip is
 # exercised with a stub grleconvert, and the real end-to-end test self-skips
 # unless the bundled grleconvert binary is present next to the tool.
 #
-# Run with:  python -m pytest test_bigmap_optimizer.py   (from the tool/ dir)
+# Run with:  python -m pytest test_mapfix.py   (from the tool/ dir)
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from unittest import mock
 
 from PIL import Image
 
-import bigmap_optimizer as fx
+import mapfix as fx
 
 
 def _make_gdm_header(
@@ -181,7 +181,7 @@ class SafeExtractTests(unittest.TestCase):
     def test_refuses_when_disk_too_full(self):
         archive = self._zip_with_member("maps/data/ok.txt")
         with tempfile.TemporaryDirectory() as d:
-            with mock.patch("bigmap_optimizer.shutil.disk_usage") as du:
+            with mock.patch("mapfix.shutil.disk_usage") as du:
                 du.return_value = mock.Mock(free=0)
                 with self.assertRaises(fx.FixerError):
                     fx._safe_extract(archive, Path(d))
@@ -339,13 +339,13 @@ class CompiledLayerTests(unittest.TestCase):
 class RunGrleconvertTests(unittest.TestCase):
     def test_nonzero_exit_raises(self):
         fake = mock.Mock(returncode=1, stdout="", stderr="boom")
-        with mock.patch("bigmap_optimizer.subprocess.run", return_value=fake):
+        with mock.patch("mapfix.subprocess.run", return_value=fake):
             with self.assertRaises(fx.FixerError):
                 fx._run_grleconvert(Path("grle"), ["a", "b"])
 
     def test_timeout_raises_fixererror(self):
         with mock.patch(
-            "bigmap_optimizer.subprocess.run",
+            "mapfix.subprocess.run",
             side_effect=subprocess.TimeoutExpired("grle", 1),
         ):
             with self.assertRaises(fx.FixerError):

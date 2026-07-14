@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#  BigMap Optimizer -- cross-vendor GPU VRAM detection (Windows)
+#  16x Map Fix -- cross-vendor GPU VRAM detection (Windows)
 #  "The Man, The Mythos, The Legend : KeilerHirsch"   (GNU GPL v3 or later)
 #
 #  Reports the primary graphics card's physical video memory so the companion

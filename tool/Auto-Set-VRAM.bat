@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================================
-rem  BigMap Optimizer -- VRAM auto-config launcher
+rem  16x Map Fix -- VRAM auto-config launcher
 rem  "The Man, The Mythos, The Legend : KeilerHirsch"   (GPLv3)
 rem
 rem  Double-click this once. It detects your graphics-card memory (NVIDIA / AMD
@@ -11,14 +11,14 @@ rem ============================================================================
 setlocal
 chcp 65001 >nul
 set "PYTHONUTF8=1"
-title BigMap Optimizer - Auto VRAM
+title 16x Map Fix - Auto VRAM
 
 set "HERE=%~dp0"
 set "SCRIPT=%HERE%configure_companion.py"
 
 if not exist "%SCRIPT%" (
   echo   [X] configure_companion.py is missing next to this launcher.
-  echo       Keep the whole BigMap Optimizer tool folder together.
+  echo       Keep the whole 16x Map Fix tool folder together.
   echo(
   pause
   exit /b 1

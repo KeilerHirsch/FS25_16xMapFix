@@ -63,7 +63,7 @@
   <!-- AFTER panel -->
   <rect x="704" y="188" width="512" height="368" rx="18" fill="url(#greenPanel)" stroke="#22c55e" stroke-opacity="0.5" stroke-width="1.5"/>
   <rect x="704" y="188" width="512" height="6" rx="3" fill="#22c55e"/>
-  <text x="732" y="232" fill="#4ade80" font-size="17" font-weight="700" letter-spacing="2">AFTER — BIGMAP OPTIMIZER</text>
+  <text x="732" y="232" fill="#4ade80" font-size="17" font-weight="700" letter-spacing="2">AFTER — 16× MAP FIX</text>
 
   <!-- clean tile grid -->
   <g transform="translate(732,258)">
