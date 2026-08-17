@@ -6,15 +6,20 @@
 #  "The Man, The Mythos, The Legend : KeilerHirsch"
 # ============================================================================
 #
-#  Makes oversized Farming Simulator 25 maps (16x / 32x, density maps larger
-#  than the engine's safe 8192px tile-registry ceiling) load and sync in
-#  multiplayer on modest hardware, by downscaling every oversized density map
-#  to 8192px in place -- fruit data included, with the field state preserved.
+#  Makes oversized Farming Simulator 25 maps (16x / 32x) more manageable by
+#  downscaling oversized density/info layers to 8192px in place -- fruit data
+#  included, with field-state encoding preserved through nearest-neighbour
+#  resampling.
 #
-#  It never deletes data and never touches map geometry, scripts or gameplay:
-#  it only re-samples the density/info layers that overflow the GIANTS engine's
-#  C++ tile-registration table (the root cause of the "Error in allocReg" /
-#  "TiledBitmapOperationCompiler failed" crash on large maps).
+#  In the documented field case, reducing those oversized layers removed the
+#  observed allocReg / TiledBitmapOperationCompiler failure pattern. That is a
+#  measured mitigation result; the exact proprietary engine-internal root cause
+#  is not claimed here as independently proven.
+#
+#  The tool does not modify terrain geometry, scripts, or gameplay code. It
+#  rewrites only supported density/info layers that exceed the configured
+#  8192px processing target. The input archive itself is never modified; a new
+#  fixed archive is written alongside it.
 #
 #  Copyright (C) 2026  KeilerHirsch
 #
@@ -36,11 +41,10 @@
 #  ---------------------------------------
 #  A map's config XML declares textureMemoryUsage / vertexBufferMemoryUsage /
 #  indexBufferMemoryUsage for GPU allocation planning. We deliberately leave
-#  these untouched: the vertex/index buffers describe the terrain MESH, which
-#  this tool never changes, and only the texture budget tracks the density
-#  layers. After shrinking the layers the original values become conservative
-#  OVER-estimates, which is safe; rewriting them risks an UNDER-estimate we
-#  cannot verify per subsystem. Correctness beats a cosmetic edit.
+#  these untouched: the vertex/index buffers describe terrain mesh data that
+#  this tool does not rewrite, while the practical meaning of the declared
+#  budgets is engine-dependent. Recomputing them without a validated per-
+#  subsystem model would create a new unsupported assumption.
 # ============================================================================
 """16x Map Fix -- FS25 oversized-map density downscaler.
 
@@ -69,8 +73,10 @@ from PIL import Image
 
 # --- Configuration ----------------------------------------------------------
 
-#: The engine's safe density-map edge length. 4x maps ship at this size and
-#: load fine in multiplayer; anything larger overflows the tile registry.
+#: Processing target used by this tool for oversized density/info layers. The
+#: documented failing maps became stable after oversized layers were reduced to
+#: this edge length; this constant is therefore an operational mitigation
+#: target, not a claim about an official GIANTS engine limit.
 SAFE_SIZE = 8192
 
 #: Hard ceiling on any density-map edge we will decode. Comfortably above a
@@ -201,7 +207,7 @@ def _run_grleconvert(grleconvert: Path, args: list[str]) -> str:
             [str(grleconvert), *args],
             capture_output=True,
             text=True,
-            errors="replace",  # never let a non-UTF8 diagnostic mask the real error
+            errors="replace",
             check=False,
             timeout=GRLECONVERT_TIMEOUT_S,
         )
@@ -230,28 +236,20 @@ def _downscale_png_file(png: Path, expected_edge: int | None = None) -> bool:
     """
     with Image.open(png, formats=["PNG"]) as img:
         width, height = img.size
-        # Not oversized: leave every small file alone -- including small,
-        # non-square overlays/icons that legitimately live under maps/data and
-        # must not abort the whole archive (finding H1/python).
         if width <= SAFE_SIZE:
             return False
-        # A non-power-of-two edge (8193, 4097, 2049, ...) marks a HEIGHTMAP /
-        # DEM: a 2^n+1 vertex grid loaded outside the tile registry, which is
-        # NOT the overflow source. Resampling it to 2^n would corrupt the
-        # terrain geometry, so heightmaps are left exactly as they are.
+        # 2^n+1 dimensions are commonly used for heightmap/DEM grids. Those
+        # layers are outside this tool's intended density/info rewrite scope and
+        # are therefore left untouched rather than being classified as the
+        # cause of a particular engine failure.
         if width & (width - 1) != 0:
-            # A 2^n+1 edge (8193, 4097, ...) is a genuine heightmap/DEM and is
-            # correctly left alone. Any OTHER non-power-of-two oversized layer is
-            # unexpected -- warn so the "it's a heightmap" assumption is
-            # falsifiable by the user instead of silently trusted.
             if (width - 1) & (width - 2) != 0:
                 _warn(
                     f"{png.name}: oversized {width}px layer is neither a power of "
-                    "two nor a 2^n+1 heightmap; leaving it unchanged. If the map "
-                    "still overflows in multiplayer, this layer may be the cause."
+                    "two nor a 2^n+1 heightmap candidate; leaving it unchanged. "
+                    "Inspect it manually if the map remains unstable."
                 )
             return False
-        # Genuinely oversized, power-of-two tiled density/info layer from here.
         if width > MAX_EDGE:
             raise FixerError(
                 f"{png.name}: {width}x{height} exceeds the {MAX_EDGE}px ceiling"
@@ -268,7 +266,7 @@ def _downscale_png_file(png: Path, expected_edge: int | None = None) -> bool:
             )
         mode = img.mode
         resized = img.resize((SAFE_SIZE, SAFE_SIZE), Image.Resampling.NEAREST)
-    if resized.mode != mode:  # the packed layout must survive the resize
+    if resized.mode != mode:
         raise FixerError(
             f"{png.name}: mode changed on resize ({mode} -> {resized.mode})"
         )
@@ -289,19 +287,19 @@ def _resize_compiled_layer(
     detected before the (costly) decode. Returns True if the layer was changed.
     """
     if header is not None and header.edge <= SAFE_SIZE:
-        return False  # small GDM: skip without decoding at all
+        return False
 
     png = path.with_name(path.name + ".fixer.png")
     try:
         _run_grleconvert(grleconvert, [str(path), str(png)])
         expected_edge = header.edge if header is not None else None
         if not _downscale_png_file(png, expected_edge=expected_edge):
-            return False  # GRLE (or GDM) that turned out to be small enough
-        if header is not None:  # GDM: re-encode with faithful parameters
+            return False
+        if header is not None:
             args = [str(png), str(path), "--channels", str(header.num_channels)]
             if header.compress_at is not None:
                 args += ["--compress-at", str(header.compress_at)]
-        else:  # GRLE: format inferred from the .grle output extension
+        else:
             args = [str(png), str(path)]
         _run_grleconvert(grleconvert, args)
         return True
@@ -310,7 +308,7 @@ def _resize_compiled_layer(
 
 
 def fix_density_layers(data_dir: Path, grleconvert: Path) -> list[str]:
-    """Resize every oversized density layer under ``data_dir`` in place.
+    """Resize every oversized supported density layer under ``data_dir``.
 
     Returns the names of the layers that were changed, for the report.
     """
@@ -318,7 +316,7 @@ def fix_density_layers(data_dir: Path, grleconvert: Path) -> list[str]:
     for path in sorted(data_dir.iterdir()):
         if not path.is_file():
             continue
-        suffix = path.suffix.lower()  # archives may carry .PNG / .GDM (finding H2)
+        suffix = path.suffix.lower()
         try:
             if suffix == PNG_EXT:
                 if _downscale_png_file(path):
@@ -343,132 +341,124 @@ def _safe_extract(archive: Path, dest: Path) -> None:
     """Extract ``archive`` into ``dest``, refusing traversal, bombs and corruption."""
     try:
         zf = zipfile.ZipFile(archive)
-    except (zipfile.BadZipFile, OSError) as exc:
-        raise FixerError(
-            f"{archive.name}: not a readable .zip archive ({exc})"
-        ) from exc
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise FixerError(f"cannot open archive: {exc}") from exc
+
     with zf:
         members = zf.infolist()
         if len(members) > MAX_ARCHIVE_MEMBERS:
-            raise FixerError("archive has too many members; refusing to extract")
-        total = 0
-        dest_root = dest.resolve()
-        for member in members:
-            total += member.file_size
-            if total > MAX_TOTAL_UNCOMPRESSED:
-                raise FixerError("archive is unreasonably large; refusing to extract")
-            target = (dest / member.filename).resolve()
-            if dest_root != target and dest_root not in target.parents:
-                raise FixerError(f"unsafe path in archive: {member.filename}")
-        # Refuse to start if the disk cannot hold the extracted tree plus the
-        # repacked copy that follows (~twice the uncompressed size).
-        free = shutil.disk_usage(dest).free
-        if free < total * 2:
             raise FixerError(
-                f"not enough free disk space: need ~{total * 2 // 1024**2} MiB, "
-                f"have {free // 1024**2} MiB free"
+                f"archive contains {len(members):,} members; limit is "
+                f"{MAX_ARCHIVE_MEMBERS:,}"
             )
+
+        total = sum(m.file_size for m in members)
+        if total > MAX_TOTAL_UNCOMPRESSED:
+            raise FixerError(
+                f"archive expands to {total / 1024**3:.1f} GiB; limit is "
+                f"{MAX_TOTAL_UNCOMPRESSED / 1024**3:.1f} GiB"
+            )
+
+        free = shutil.disk_usage(dest).free
+        required = max(total * 2, total + 2 * 1024**3)
+        if free < required:
+            raise FixerError(
+                f"not enough free space: need roughly {required / 1024**3:.1f} GiB, "
+                f"have {free / 1024**3:.1f} GiB"
+            )
+
+        root = dest.resolve()
+        for member in members:
+            target = (dest / member.filename).resolve()
+            if target != root and root not in target.parents:
+                raise FixerError(f"archive contains unsafe path: {member.filename!r}")
+
         try:
             zf.extractall(dest)
-        except (zipfile.BadZipFile, OSError) as exc:
-            raise FixerError(f"{archive.name}: archive is corrupt ({exc})") from exc
+        except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+            raise FixerError(f"failed to extract archive: {exc}") from exc
 
 
-def _repack(src_dir: Path, out_zip: Path) -> None:
-    """Repack a directory tree into a zip, deterministically ordered.
+def _find_data_dir(root: Path) -> Path:
+    candidates = [p for p in root.rglob(DATA_SUBDIR) if p.is_dir()]
+    if not candidates:
+        raise FixerError(f"archive does not contain {DATA_SUBDIR}/")
+    if len(candidates) > 1:
+        raise FixerError(
+            f"archive contains multiple {DATA_SUBDIR}/ directories; refusing to guess"
+        )
+    return candidates[0]
 
-    Written to a sibling ``.tmp`` file and atomically moved into place only once
-    the whole archive is complete, so an interruption or a disk-full error
-    mid-write can never leave a truncated/corrupt ``_fixed.zip`` behind.
-    """
-    files = sorted(p for p in src_dir.rglob("*") if p.is_file())
-    tmp = out_zip.with_name(out_zip.name + ".tmp")
+
+def _write_archive(root: Path, output: Path) -> None:
+    tmp = output.with_suffix(output.suffix + ".tmp")
+    tmp.unlink(missing_ok=True)
     try:
-        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-            for path in files:
-                zf.write(path, path.relative_to(src_dir).as_posix())
-        tmp.replace(out_zip)  # atomic on the same filesystem
-    except BaseException:
+        with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for path in sorted(root.rglob("*")):
+                if path.is_file():
+                    zf.write(path, path.relative_to(root))
+        tmp.replace(output)
+    except Exception:
         tmp.unlink(missing_ok=True)
         raise
 
 
-def _find_grleconvert() -> Path:
-    """Locate the bundled grleconvert executable next to this script."""
-    here = Path(__file__).resolve().parent
-    name = "grleconvert.exe" if sys.platform.startswith("win") else "grleconvert"
-    for candidate in (here / name, here / "bin" / name):
-        if candidate.is_file():
-            return candidate
-    raise FixerError(
-        "grleconvert not found next to the fixer. Place the grleconvert "
-        "binary (or bin/grleconvert) in the tool directory."
+def fix_archive(archive: Path, output: Path) -> list[str]:
+    """Fix an archive and return the changed layer names."""
+    if archive.resolve() == output.resolve():
+        raise FixerError("output path must differ from input; source archives are immutable")
+
+    grleconvert = Path(__file__).with_name("grleconvert.exe")
+    if not grleconvert.is_file():
+        raise FixerError(f"bundled converter not found: {grleconvert}")
+
+    with tempfile.TemporaryDirectory(prefix="fs25-mapfix-") as tmpdir:
+        root = Path(tmpdir)
+        _safe_extract(archive, root)
+        data_dir = _find_data_dir(root)
+        changed = fix_density_layers(data_dir, grleconvert)
+        _write_archive(root, output)
+        return changed
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    print(BANNER)
+
+    if not argv:
+        print("Usage: mapfix.py <map.zip> [output.zip]", file=sys.stderr)
+        return 2
+
+    archive = Path(argv[0]).expanduser()
+    if not archive.is_file():
+        print(f"ERROR: input archive not found: {archive}", file=sys.stderr)
+        return 2
+
+    output = (
+        Path(argv[1]).expanduser()
+        if len(argv) > 1
+        else archive.with_name(f"{archive.stem}_fixed{archive.suffix}")
     )
 
-
-# --- Orchestration ----------------------------------------------------------
-
-
-def fix_map(map_zip: Path, out_zip: Path | None = None) -> Path:
-    """Fix a single map archive, returning the path of the fixed copy."""
-    if not map_zip.is_file() or map_zip.suffix.lower() != ".zip":
-        raise FixerError(f"not a .zip map archive: {map_zip}")
-    grleconvert = _find_grleconvert()
-    if out_zip is None:
-        out_zip = map_zip.with_name(f"{map_zip.stem}_fixed.zip")
-    if out_zip.resolve() == map_zip.resolve():
-        raise FixerError(
-            "output path must differ from the input; refusing to overwrite the original map"
-        )
-
-    # Extract next to the output so the free-space preflight in _safe_extract
-    # measures the drive the fixed map is actually written to (not the system
-    # temp drive), and so extraction + the repacked copy share one filesystem
-    # (making the final move atomic).
-    with tempfile.TemporaryDirectory(prefix="fs25fixer_", dir=out_zip.parent) as tmp:
-        work = Path(tmp)
-        _safe_extract(map_zip, work)
-
-        data_dir = work / DATA_SUBDIR
-        if not data_dir.is_dir():
-            raise FixerError(
-                f"no '{DATA_SUBDIR}' folder inside the archive -- is this an FS25 map?"
-            )
-
-        print(f"  Scanning density layers in {DATA_SUBDIR} ...")
-        changed = fix_density_layers(data_dir, grleconvert)
-        if not changed:
-            print("  Nothing oversized found -- this map is already engine-safe.")
-        else:
-            print(f"  Resized {len(changed)} oversized layer(s) to {SAFE_SIZE}px:")
-            for name in changed:
-                print(f"    - {name}")
-
-        print(f"  Repacking -> {out_zip.name}")
-        _repack(work, out_zip)
-    return out_zip
-
-
-def main(argv: list[str]) -> int:
-    """CLI entry point: fix the map given as the first argument."""
-    print(BANNER)
-    if not argv:
-        print("Usage: python mapfix.py <map.zip> [output.zip]")
-        return 2
     try:
-        out = fix_map(Path(argv[0]), Path(argv[1]) if len(argv) > 1 else None)
+        changed = fix_archive(archive, output)
     except FixerError as exc:
-        print(f"\n  ERROR: {exc}")
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-    except (
-        Exception
-    ) as exc:  # noqa: BLE001 - last resort: a clean message, never a raw traceback
-        print(f"\n  UNEXPECTED ERROR: {exc}")
+    except Exception as exc:  # noqa: BLE001 - final defensive boundary
+        print(f"ERROR: unexpected failure: {exc}", file=sys.stderr)
         return 1
-    print(f"\n  Done. Fixed map written to:\n    {out}\n")
-    print("  Apply it to YOUR legally-owned copy of the map. Happy farming.")
+
+    if changed:
+        print(f"Fixed {len(changed)} oversized density layer(s):")
+        for name in changed:
+            print(f"  - {name}")
+    else:
+        print("No supported oversized density layers required changes.")
+    print(f"Output: {output}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())
