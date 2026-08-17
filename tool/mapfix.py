@@ -3,7 +3,7 @@
 #
 # ============================================================================
 #  16x Map Fix  --  oversized-map density downscaler
-#  "The Man, The Mythos, The Legend : KeilerHirsch"
+#  "The Man, The Myth, The Legend : Keilerhirsch"
 # ============================================================================
 #
 #  Makes oversized Farming Simulator 25 maps (16x / 32x) more manageable by
@@ -116,7 +116,6 @@ Image.MAX_IMAGE_PIXELS = MAX_EDGE * MAX_EDGE
 BANNER = r"""
   ============================================================
    16x Map Fix  --  oversized-map density downscaler
-   "The Man, The Mythos, The Legend : KeilerHirsch"
   ============================================================
 """
 
