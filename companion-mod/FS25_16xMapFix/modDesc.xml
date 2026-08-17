@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!--
   16x Map Fix Companion - Texture Streaming Budget
-  "The Man, The Mythos, The Legend : KeilerHirsch"   (GNU GPL v3 or later)
+  Copyright (C) 2026 KeilerHirsch - GNU GPL v3 or later.
 
   Mod name = "FS25_16xMapFix" (final). It must stay identical on
   server and client for multiplayer, and must match COMPANION_MOD_NAME in the
@@ -20,28 +20,24 @@
     </title>
 
     <description>
-        <en><![CDATA[Companion to the 16x Map Fix map tool.
+        <en><![CDATA[Companion mod for the 16x Map Fix tooling.
 
-Farming Simulator 25 caps high-resolution texture streaming at roughly 4 GB of graphics-card memory by default. On large (16x / 32x) maps that starves the terrain and causes texture flicker and pop-in. This mod raises the cap to a value you set ONCE in a plain settings file - no code editing - and it survives mod updates.
+This mod applies a configurable Farming Simulator 25 texture-streaming memory budget at game start. The value is stored in modSettings/FS25_16xMapFix.xml and can be written by the companion configuration tool or edited manually.
 
-The value lives in:  modSettings/FS25_16xMapFix.xml  (created automatically on first run). Rule of thumb: set vramGiB to your graphics-card memory in GB minus 2.
+The companion exists to keep the texture-budget setting separate from map-file changes. It does not establish that one budget value is correct for every map, GPU or FS25 build, and it does not by itself prove the root cause of any specific rendering or loading problem.
 
-Client-side rendering setting only: it changes no gameplay, no savegame and no multiplayer state, so it is fully multiplayer-safe.
+The current code is intended to change a client-side rendering budget and does not intentionally modify gameplay or savegame data. Multiplayer support in the mod descriptor is not a blanket guarantee across every server, hardware configuration, mod combination or future FS25 version.
 
-Only use it if your graphics card has MORE than 4 GB of VRAM.
+Higher configured budgets consume more VRAM. Use a value supported by the actual hardware and workload.]]></en>
+        <de><![CDATA[Begleit-Mod fuer die 16x-Map-Fix-Werkzeuge.
 
-"The Man, The Mythos, The Legend : KeilerHirsch"]]></en>
-        <de><![CDATA[Begleit-Mod zum 16x-Map-Fix-Kartentool.
+Der Mod setzt beim Spielstart ein konfigurierbares Texture-Streaming-Speicherbudget fuer Farming Simulator 25. Der Wert wird in modSettings/FS25_16xMapFix.xml gespeichert und kann vom Companion-Konfigurationstool geschrieben oder manuell bearbeitet werden.
 
-Farming Simulator 25 begrenzt das Streaming hochaufloesender Texturen standardmaessig auf rund 4 GB Grafikkartenspeicher. Auf grossen (16x / 32x) Karten reicht das nicht und es kommt zu Textur-Flackern und Nachladen. Diese Mod hebt das Limit auf einen Wert an, den du EINMAL in einer einfachen Einstellungsdatei setzt - ohne Code zu bearbeiten - und der Mod-Updates uebersteht.
+Der Companion haelt die Texture-Budget-Einstellung bewusst getrennt von Aenderungen an Kartendateien. Er belegt nicht, dass ein einzelner Budgetwert fuer jede Karte, GPU oder FS25-Version richtig ist, und er beweist fuer sich allein keine bestimmte Root Cause eines Rendering- oder Ladeproblems.
 
-Der Wert steht in:  modSettings/FS25_16xMapFix.xml  (wird beim ersten Start automatisch angelegt). Faustregel: vramGiB = Grafikkartenspeicher in GB minus 2.
+Der aktuelle Code soll ein clientseitiges Rendering-Budget veraendern und modifiziert Gameplay oder Spielstanddaten nicht absichtlich. Die Multiplayer-Freigabe im Mod-Descriptor ist keine pauschale Garantie fuer jeden Server, jede Hardware-Konfiguration, Mod-Kombination oder zukuenftige FS25-Version.
 
-Reine clientseitige Render-Einstellung: aendert kein Gameplay, keinen Spielstand und keinen Multiplayer-Zustand - damit voll multiplayer-sicher.
-
-Nur verwenden, wenn die Grafikkarte MEHR als 4 GB VRAM hat.
-
-"The Man, The Mythos, The Legend : KeilerHirsch"]]></de>
+Hoehere konfigurierte Budgets verbrauchen mehr VRAM. Verwende einen Wert, den die tatsaechliche Hardware und der Workload tragen.]]></de>
     </description>
 
     <extraSourceFiles>
