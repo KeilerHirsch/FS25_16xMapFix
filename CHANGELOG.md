@@ -9,10 +9,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - **Rebrand to "16x Map Fix"** — one consistent name across the whole project. The
   product was previously labelled "BigMap Optimizer" while the repo and releases said
-  "16x Map Fix", so the download names never matched the repo (they looked like foreign
-  files). Now unified: repo `FS25_16xMapFix`, tool module `mapfix.py`, companion mod
-  `FS25_16xMapFix`, logo wordmark "16× MAP FIX". **No functional change** — the tool and
-  companion behave identically; the 49-test suite stays green.
+  "16x Map Fix", so the download names did not match the repository name. Now unified:
+  repo `FS25_16xMapFix`, tool module `mapfix.py`, companion mod `FS25_16xMapFix`,
+  logo wordmark "16× MAP FIX". **No functional change** — the tool and companion
+  behavior are unchanged; the 49-test suite remained green at release time.
 - The companion settings file is now `modSettings/FS25_16xMapFix.xml` (was
   `FS25_BigMapOptimizerCompanion.xml`). Delete the old file after updating; the mod
   recreates the new one on first run.
@@ -21,30 +21,30 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 - ECC audit pass (ruff clean, bandit 7 → 0): annotated the benign findings as
-  `nosec` with rationale — `quoteattr` escapes our own generated XML output (never
-  parses untrusted input); `nvidia-smi` runs with a fixed list-form argv, no shell.
-  No behaviour change; the 49-test suite stays green.
+  `nosec` with rationale — `quoteattr` escapes generated XML output; `nvidia-smi`
+  runs with a fixed list-form argv and no shell. No behavior change; the 49-test
+  suite was green for this release.
 
 ### Changed
 - Repo now carries **GPLv3** at the root LICENSE. The tool code was already GPLv3
   in the file headers; this makes GitHub detect and display GPL-3.0 instead of the
-  documentation's CC-BY, matching the KeilerHirsch default and removing the
-  "why does it say CC-BY?" confusion. The root-cause writeup prose stays reusable
-  under CC-BY-4.0 with attribution. No code change.
+  documentation's CC-BY. The technical write-up prose remains reusable under
+  CC-BY-4.0 with attribution. No code change.
 
 ## [1.1.2] - 2026-07-12
 
 ### Fixed
 - **Atomic repack:** the fixed `.zip` is now written to a temp file and moved into
-  place only once complete, so an interrupted or disk-full run can no longer leave
-  a truncated/corrupt output behind (this tool targets multi-GB maps).
+  place only once complete, reducing the risk that an interrupted or disk-full run
+  leaves a truncated output archive behind.
 - **Disk-space preflight** now measures the drive the fixed map is actually written
   to (extraction happens next to the output), not the system temp drive.
-- **Silent skip made falsifiable:** an oversized layer that is neither a power of
-  two nor a 2^n+1 heightmap is now warned about instead of quietly left unchanged.
+- **Silent skip made observable:** an oversized layer that is neither a power of
+  two nor a 2^n+1 heightmap candidate is now warned about instead of quietly left
+  unchanged.
 
-Found by an independent code-review pass. No change to behaviour on a valid map —
-all 49 tests still pass.
+Found by an independent code-review pass. No intended behavior change on the
+validated map fixtures; all 49 tests passed for this release.
 
 ## [1.1.1] - 2026-07-12
 
@@ -63,35 +63,32 @@ all 49 tests still pass.
 
 ## [1.1.0] - 2026-07-11
 
-Security- and correctness-hardening pass. No change to the tool's behaviour on
-a legitimate oversized map; every fix below closes a way a malformed or hostile
-map archive could crash the tool, hang it, or make it silently ship an unfixed
-layer. Driven by a full static-analysis battery (ruff, black, mypy --strict,
-bandit) plus independent code- and security-review passes.
+Security- and correctness-hardening pass. The changes below address malformed or
+hostile archive behavior and failure observability. Driven by static analysis
+(ruff, black, mypy --strict, bandit) plus independent code- and security-review
+passes.
 
 ### Security
 - Pin Pillow to the PNG decoder (`Image.open(..., formats=["PNG"])`) so an
-  archive member merely *named* `.png` can no longer be routed through an
-  unrelated image decoder (format-confusion / decoder-surface widening).
+  archive member merely *named* `.png` is not routed through an unrelated image
+  decoder.
 - Add a free-disk-space preflight before extraction, sized for the extracted
-  tree plus the repacked copy, so a cheaply-compressible archive cannot fill
-  the disk.
-- Bound every `grleconvert` invocation with a timeout, so a corrupt layer that
-  makes the native converter hang can no longer wedge the tool indefinitely.
+  tree plus the repacked copy.
+- Bound every `grleconvert` invocation with a timeout so a converter hang does
+  not block the tool indefinitely.
 
 ### Fixed
 - Match layer extensions case-insensitively: `.PNG` / `.GDM` / `.GRLE` layers
-  are no longer silently skipped (which previously reported success while
-  leaving the overflowing layer unfixed).
-- A small, non-square overlay/icon under `maps/data` is now left alone instead
-  of aborting the whole map.
-- A corrupt or truncated `.zip` now fails with a clear error message instead of
-  a raw Python traceback.
-- Refuse an output path equal to the input, honouring the "input is never
-  modified" guarantee.
+  are no longer silently skipped by the extension check.
+- A small, non-square overlay/icon under `maps/data` is left alone instead of
+  aborting the whole map.
+- A corrupt or truncated `.zip` fails with a clearer error message instead of
+  exposing a raw Python traceback.
+- Refuse an output path equal to the input, preserving the tool's design that
+  source archives are not overwritten in place.
 - Reject implausible GDM header dimensions instead of computing an oversized
   shift; cross-check a decoded layer's real size against its header and warn on
-  a mismatch (trusting the pixels).
+  a mismatch.
 
 ### Changed
 - Use the non-deprecated `Image.Resampling.NEAREST` spelling.
@@ -102,14 +99,15 @@ bandit) plus independent code- and security-review passes.
 ## [1.0.0] - 2026-07-11
 
 ### Added
-- Initial release. Downscales every oversized (16x/32x) density/info layer of a
-  Farming Simulator 25 map to the engine-safe 8192px so it loads and syncs in
-  multiplayer, without deleting data or touching map geometry, scripts or
-  gameplay. Heightmaps (2^n+1 DEM grids) are deliberately left untouched.
+- Initial release. Downscales supported oversized (16x/32x) density/info layers
+  of a Farming Simulator 25 map to an 8192px operational target derived from the
+  validated field case. The tool does not rewrite terrain geometry, scripts or
+  gameplay code, and leaves 2^n+1 heightmap/DEM candidates untouched.
 - Bundles `grleconvert` (Paint-a-Farm/grleconvert, MIT) for `.gdm`/`.grle` ↔ PNG
   conversion; zip-bomb and path-traversal guards on extraction.
-- Drag-and-drop launcher (`Optimize-Map.bat`) and a documented SP-vs-MP root
-  cause for the "Error in allocReg" crash.
+- Drag-and-drop launcher (`Optimize-Map.bat`) and a write-up documenting the
+  observed SP-vs-MP failure pattern and the mitigation hypothesis. The exact
+  proprietary engine-internal root cause is not claimed as independently proven.
 
 [1.1.0]: https://github.com/KeilerHirsch/fs25-16x-map-fix/releases/tag/v1.1.0
 [1.0.0]: https://github.com/KeilerHirsch/fs25-16x-map-fix/releases/tag/v1.0.0
