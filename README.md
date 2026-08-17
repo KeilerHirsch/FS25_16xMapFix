@@ -1,74 +1,99 @@
 <div align="center">
 
-<img src="assets/logo_512.png" width="200" alt="16x Map Fix"/>
+<img src="assets/logo_512.png" width="200" alt="FS25 16x Map Fix"/>
 
-# FS25 16x Map Fix — the real root cause + a tool that fixes it
+# FS25 16x Map Fix
 
-**Why 16x (and larger) Farming Simulator 25 maps crash with `Error in allocReg` / freeze at "100% compiling shaders" — fully diagnosed — plus a tool that makes them load and sync in multiplayer on normal hardware.**
+**A field-tested tool and investigation notes for `allocReg` failures on large Farming Simulator 25 maps.**
+
+[![License: GPLv3](https://img.shields.io/badge/license-GPL--3.0-lightgrey)](LICENSE)
 
 </div>
-
-> [!IMPORTANT]
-> Enjoying the tool? You can support development on **[Ko-fi](https://ko-fi.com/keilerhirsch)** ☕ — please mention *16x Map Fix* so I know what to keep building.
-
-> Diagnosed on a dedicated server + a 16 GB-RAM client running the same 16x map. The tool took a real 16x map from **878,987 `allocReg` errors → 0** and made it playable in multiplayer.
 
 <div align="center">
-
-<img src="assets/showcase.gif" width="900" alt="Before/after: a 16x FS25 map going from 878,987 allocReg errors to 0 in multiplayer"/>
-
+<img src="assets/showcase.gif" width="900" alt="Before and after: a 16x FS25 map going from 878,987 allocReg errors to zero in the tested multiplayer setup"/>
 </div>
 
-## TL;DR
+## What was measured
 
-The `allocReg` crash is really **two different problems** that look identical:
+The motivating case was reproduced with the same 16x map on a dedicated server and a 16 GB client.
 
-| | Root cause | Fix |
+- The failing client produced **878,987 `allocReg` errors**.
+- After the oversized writable density/info layers were reduced to 8192 px by this tool, the tested map produced **0 `allocReg` errors** and joined successfully in multiplayer.
+- A dedicated server with **262 GB RAM** still reproduced thousands of `allocReg` errors before the map conversion, which rules out simple server-RAM exhaustion as a sufficient explanation for the multiplayer failure.
+- The original, unmodified map could load in the tested single-player setup once enough commit memory was available.
+
+Those are field observations from the tested configurations. The engine-internal explanation below is the interpretation that best fits them; it should not be read as an official GIANTS implementation statement.
+
+## Working diagnosis
+
+Two failure paths can present similarly around the density compilation/loading stage:
+
+| Context | Observed bottleneck | Practical mitigation used here |
 |---|---|---|
-| **Singleplayer** | Commit memory — a 16x map needs ~20–32 GB during the first density compile; 16 GB fails | A large pagefile (48 GB+) + DX11 → the **original, unmodified** map loads |
-| **Multiplayer** | A **fixed-capacity tile registry** in the density-map syncer overflows on 16384px density maps | **Shrink the map's writable density layers to 8192px** — the tool below |
+| **Single player** | high commit-memory demand during first density compilation | sufficient pagefile/commit headroom; DX11 was useful in the tested setup |
+| **Multiplayer** | failure scales with oversized writable density maps and persists despite very large server RAM | reduce oversized writable density/info layers to 8192 px |
 
-The proof that MP is **not** a RAM problem: a dedicated server with **262 GB of RAM still threw the same 3014 `allocReg` errors**. More RAM/pagefile does not help multiplayer — only fewer tiles do.
+The multiplayer evidence is consistent with a capacity limit in the path that registers or synchronizes tiled writable density data. Writable crop/ground/info layers cover the full map and scale with map area, unlike read-only assets that can be streamed more selectively.
 
-## Root cause, in detail
-
-The overflowing layers (fruits, ground, weed, infoLayers) are the game's **writable "terrain-detail" density maps** — you plow, plant and harvest into them, everywhere, off-screen too, and the server tracks the whole map. Writable data **cannot use Virtual Texturing** (which streams only visible read-only tiles), so these layers must be fully resident and registered. Their cost scales with map area: 16x = 16× the tiles.
-
-In **singleplayer** the client loads its own finished `.gdm` files — the only bottleneck is the memory spike during the first compile, which a big pagefile absorbs.
-
-In **multiplayer** the server streams its density maps to each joining client, which **re-compiles them live** through the fixed-size tile registry (`TiledBitmapOperationCompiler`). 16384px density overflows it → thousands of `allocReg`. This is a hard capacity limit, not RAM — hence the 262 GB server still failing, and hence GIANTS' effective **x4 multiplayer ceiling**: x4 is the largest area whose writable density fits the registry and the per-connection sync.
+That interpretation explains why adding server RAM did not fix the reproduced case while reducing the number of writable density tiles did. It remains an inference from behavior and tooling results, not a claim based on GIANTS source code.
 
 ## The tool
 
-[`tool/mapfix.py`](tool/mapfix.py) + [`tool/Optimize-Map.bat`](tool/Optimize-Map.bat) (Windows drag & drop). It downscales every oversized (16384px, power-of-two) density/info layer in a map to the engine-safe **8192px** — the exact density working 4x maps ship at — with **field and crop data preserved** (decode → nearest-neighbour resample → re-encode; verified 99.9% pixel-identical, fruit coverage unchanged). Heightmaps and terrain geometry (`dem.png`, 2ⁿ+1 grids) are detected by their non-power-of-two size and **never touched**.
+[`tool/mapfix.py`](tool/mapfix.py) and [`tool/Optimize-Map.bat`](tool/Optimize-Map.bat) convert oversized power-of-two density/info layers to **8192 px** while leaving non-power-of-two height/terrain grids alone.
 
-### Use it
+The workflow is:
 
-1. Drag your map `.zip` onto **`Optimize-Map.bat`** (needs Python 3 — Pillow is auto-installed).
-2. A `*_fixed.zip` is written next to it — your original is never modified.
-3. Upload the fixed map to your server, start a **fresh savegame** (important — old savegames carry the old density revision), and join.
+```text
+map zip
+  -> identify oversized writable density/info layers
+  -> decode
+  -> nearest-neighbour resize
+  -> re-encode
+  -> write a separate *_fixed.zip
+```
 
-Bundles [`grleconvert`](https://github.com/Paint-a-Farm/grleconvert) (MIT) for `.gdm`/`.grle` ↔ PNG conversion. Handles 16x and 32x; output is always the safe 8192px.
+The original archive is not modified.
 
-## Multiplayer caveat (GIANTS autosave)
+## Use it
 
-Even with a fixed map, GIANTS' dedicated server performs a **blocking autosave** (`auto_save_interval`, default 10 min). On a big map the save stalls the main thread long enough that a client can time out ("lost connection") right at the save moment — the server stays up. **Raise `auto_save_interval` in `dedicatedServerConfig.xml`** (e.g. 30–60) to make this rare.
+1. Install Python 3.
+2. Drag the map `.zip` onto `Optimize-Map.bat` on Windows, or run `tool/mapfix.py` directly.
+3. Use the generated `*_fixed.zip` on the server.
+4. Start a **fresh savegame** so old density-map state is not reused.
+5. Keep the original map archive until the converted version has been verified in your own setup.
 
-## Companion mod: Auto VRAM Optimizer
+The tool bundles [`grleconvert`](https://github.com/Paint-a-Farm/grleconvert) under its MIT license for `.gdm`/`.grle` conversion.
 
-A separate little mod that raises FS25's ~4 GB texture-streaming cap to your card's real VRAM — smoother loading and less pop-in for **any** card with more than 4 GB, not just 16x maps:
+## What the conversion changes
 
-➡️ **https://github.com/KeilerHirsch/FS25_AutoVRAMOptimizer**
+The conversion intentionally reduces writable density-map resolution. That trades some underlying density precision for compatibility with the tested large-map multiplayer path.
 
-## Sources
+In the development fixture, decoded/resampled data retained the expected field/crop structure and the converted map was playable. Do not interpret that as a guarantee for every custom map: map authors can use unusual layers, scripts, or assumptions that this tool cannot know about.
 
-- [GIANTS Forum — FS25 freezes at 100% compiling shaders on any 16x map](https://forum.giants-software.com/viewtopic.php?t=217079)
-- [GIANTS Forum — Precision Farming may have a problem with 16X maps](https://forum.giants-software.com/viewtopic.php?t=214384)
+**Back up the map and savegame before conversion.**
+
+## Autosave caveat
+
+A separate issue observed on large dedicated-server maps is a visible pause during autosave. A long blocking save can overlap with client timeout behavior even when the server itself remains running.
+
+If that is reproducible in your setup, increasing `auto_save_interval` in `dedicatedServerConfig.xml` can reduce how often the two events coincide. This is separate from the `allocReg` conversion above.
+
+## Related tool
+
+[FS25 Auto VRAM Optimizer](https://github.com/KeilerHirsch/FS25_AutoVRAMOptimizer) adjusts the local texture-streaming budget. It addresses a different rendering/resource constraint and is not required for the density-map conversion.
+
+## Sources and reproducibility
+
+Useful external discussions that motivated or matched the field observations:
+
+- [GIANTS Forum — freezes at 100% compiling shaders on large maps](https://forum.giants-software.com/viewtopic.php?t=217079)
+- [GIANTS Forum — Precision Farming and 16x maps](https://forum.giants-software.com/viewtopic.php?t=214384)
+
+If you can reproduce a different outcome, open an issue with the map dimensions, relevant log excerpt, server/client memory configuration, and whether the map was tested before and after conversion. Contradicting evidence is useful here.
 
 ## License
 
-**GPLv3** — see [LICENSE](LICENSE). Forks and PRs are welcome; keep the attribution (KeilerHirsch) and the same license. The bundled `grleconvert.exe` is third-party (Paint-a-Farm/grleconvert, MIT).
+Code is [GPLv3](LICENSE). The bundled `grleconvert` binary remains under the upstream MIT license.
 
-The root-cause **writeup** (the analysis/prose in this README) may additionally be reused under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) with attribution — quote the diagnosis freely.
-
-Maintained by **KeilerHirsch**.
+The investigation prose in this README may additionally be reused under CC BY 4.0 with attribution.
