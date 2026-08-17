@@ -1,15 +1,23 @@
 name: Bug report
-description: Report a problem so it can be fixed
+description: Report a reproducible 16x Map Fix problem
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Thanks for taking the time to file a report. Please fill out the details below.
+      value: |
+        Please describe the failure without uploading private maps or unrelated logs. A small synthetic fixture is preferred when possible.
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      description: Release/tag or commit used.
+    validations:
+      required: true
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
-      description: A clear description of the bug and what you expected instead.
+      description: Include the exact error/warning and what output you expected.
     validations:
       required: true
   - type: textarea
@@ -17,22 +25,29 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. ...
-        2. ...
-        3. ...
+        1. Run ...
+        2. With a map containing ...
+        3. Observe ...
     validations:
       required: true
-  - type: input
-    id: version
+  - type: textarea
+    id: map-shape
     attributes:
-      label: Version
-      description: Which release/tag are you on?
+      label: Relevant map/layer details
+      description: Map scale, oversized layer names/types/dimensions, and whether the failure is SP, MP, or tool-side. Redact private names/paths.
     validations:
-      required: false
+      required: true
   - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: OS, versions, relevant setup.
+      description: OS, Python/Pillow version if relevant, FS25 build if the failure occurs in-game, and free disk space for extraction/output failures.
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Minimal evidence
+      description: Paste only the relevant log/error lines or link a redistributable fixture. Do not attach private maps, credentials, server data, or personal information.
     validations:
       required: false
